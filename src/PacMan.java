@@ -24,10 +24,9 @@ class GamePanel extends JPanel implements ActionListener, KeyListener {
     private final int COLS = 40;
     private final Timer timer;
 
-    private int pacmanX = 1;
-    private int pacmanY = 1;
-    private int dirX = 0;
-    private int dirY = 0;
+    private long lastTime = System.nanoTime();
+
+    Pac_Man pacman = new Pac_Man(1, 1);
 
     private final int[][] map = {
         {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
@@ -46,7 +45,7 @@ class GamePanel extends JPanel implements ActionListener, KeyListener {
         setBackground(Color.BLACK);
         setFocusable(true);
         addKeyListener(this);
-        timer = new Timer(100, this);
+        timer = new Timer(16, this);
         timer.start();
     }
 
@@ -70,18 +69,16 @@ class GamePanel extends JPanel implements ActionListener, KeyListener {
         }
 
         g.setColor(Color.YELLOW);
-        g.fillOval(pacmanX * TILE_SIZE, pacmanY * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+        g.fillOval(pacman.getX() * TILE_SIZE, pacman.getY() * TILE_SIZE, TILE_SIZE, TILE_SIZE);
     }
 
     @Override
     public void actionPerformed(ActionEvent e){
-        if(map[pacmanY + dirY][pacmanX + dirX] != 1){
-            pacmanX += dirX;
-            pacmanY += dirY;
-        }
-        if(map[pacmanY][pacmanX] == 2){
-            map[pacmanY][pacmanX] = 0;
-        }
+        long currentTime = System.nanoTime();
+        double deltaTime = (currentTime - lastTime) / 1_000_000_000.0;
+        lastTime = currentTime;
+
+        pacman.update(map, deltaTime);
 
         repaint();
     }
@@ -89,65 +86,73 @@ class GamePanel extends JPanel implements ActionListener, KeyListener {
     @Override
     public void keyPressed(KeyEvent e){
         switch(e.getKeyCode()) {
-            case KeyEvent.VK_UP -> {dirX = 0; dirY = -1; }
-            case KeyEvent.VK_DOWN -> { dirX = 0; dirY = 1; }
-            case KeyEvent.VK_LEFT -> { dirX = -1; dirY = 0; }
-            case KeyEvent.VK_RIGHT -> { dirX = 1; dirY = 0; }
+            case KeyEvent.VK_UP -> pacman.setDirection(0, -1);
+            case KeyEvent.VK_DOWN -> pacman.setDirection(0, 1);
+            case KeyEvent.VK_LEFT -> pacman.setDirection(-1, 0);
+            case KeyEvent.VK_RIGHT -> pacman.setDirection(1, 0);
         }
     }
 
     @Override public void keyReleased(KeyEvent e) {
         switch(e.getKeyCode()) {
-            case KeyEvent.VK_UP :
-                if(dirY == -1){
-                    dirX = 0;
-                    dirY = 0;
-                    break;
-                }
-            case KeyEvent.VK_DOWN :
-                if(dirY == 1){
-                    dirX = 0;
-                    dirY = 0;
-                    break;
-                }
-            case KeyEvent.VK_LEFT :
-                if(dirX == -1){
-                    dirX = 0;
-                    dirY = 0;
-                    break;
-                }
-            case KeyEvent.VK_RIGHT :
-                if(dirX == 1){
-                    dirX = 0;
-                    dirY = 0;
-                    break;
-                }
+            default : pacman.setDirection(0, 0);
         }
         
     }
     @Override public void keyTyped(KeyEvent e) {}
 }
 
-class Actor {
-    private int x, y;
-    private int dirX, dirY;
+abstract class Actor {
+    protected int x, y;
+    protected int dirX, dirY;
+    private boolean isMoving = false;
 
-    public Actor(){
+    public Actor(int startX, int startY){
+        this.x = startX;
+        this.y = startY;
+        this.dirX = 0;
+        this.dirY = 0;
     }
+
+    public void setDirection(int dirX, int dirY){
+        this.dirX = dirX;
+        this.dirY = dirY;
+        if(this.dirX == 0 && this.dirY == 0) isMoving = true;
+    }
+
+    public int getX() { return x; }
+    public int getY() { return y; }
+
+    public abstract void update(int[][] map, double deltaTime);
 }
 
-class Pac_man extends Actor {
+class Pac_Man extends Actor {
     private int score;
+    private final double speed = 5.0;
+    private double accumulativeMove = 0.0;
 
-    /*public void move(int[][] map){
+    Pac_Man(int startX, int startY){
+        super(startX, startY);
+        score = 0;
+    }
+
+    @Override
+    public void update(int[][] map, double deltaTime){
+        accumulativeMove += speed * deltaTime;
+
         if(map[y + dirY][x + dirX] != 1){
             x += dirX;
             y += dirY;
         }
-    }*/
+        eatCookie(map);
+        accumulativeMove = 0.0;
+    }
 
-    public void eatCookie(){
-        score++;
+    public void eatCookie(int[][] map){
+        if(map[y][x] == 2){
+            map[y][x] = 0;
+            score++;
+        }
     }
 
     public int getScore(){
@@ -156,7 +161,14 @@ class Pac_man extends Actor {
 }
 
 class Ghost extends Actor {
+    Ghost(int startX, int startY){
+        super(startX, startY);
+    }
 
+    @Override
+    public void update(int[][] map, double deltaTime){
+
+    }
 }
 
 class Cookie {
